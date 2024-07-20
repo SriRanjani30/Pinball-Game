@@ -164,9 +164,15 @@ function resetBricks() {
   for (let c = 0; c < brickColumnCount; c++) {
     bricks[c] = [];
     for (let r = 0; r < brickRowCount; r++) {
-      bricks[c][r] = { x: 0, y: 0, status: 1 };
+      bricks[c][r] = { x: 0, y: 0, status: 1, color: getRandomBrickColor() };
     }
   }
+}
+
+// Get random brick color function
+function getRandomBrickColor() {
+  let colors = ['#FF5733', '#FFC300', '#DAF7A6', '#C70039', '#900C3F'];
+  return colors[Math.floor(Math.random() * colors.length)];
 }
 
 // Draw ball function
@@ -198,7 +204,7 @@ function drawBricks() {
         bricks[c][r].y = brickY;
         ctx.beginPath();
         ctx.rect(brickX, brickY, brickWidth, brickHeight);
-        ctx.fillStyle = '#0095DD';
+        ctx.fillStyle = bricks[c][r].color;
         ctx.fill();
         ctx.closePath();
       }
@@ -263,7 +269,7 @@ function applyPowerUp() {
   // Implement power-up effects
   let randomPowerUp = Math.random();
   if (randomPowerUp < 0.5) {
-    // Increase paddle size
+    // Increase paddle width
     paddleWidth += 20;
     setTimeout(() => {
       paddleWidth -= 20;
