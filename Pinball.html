@@ -28,6 +28,25 @@
 <canvas id="pinballCanvas" width="800" height="600"></canvas>
 <button id="resetButton">Reset Game</button>
 
+<audio id="paddleHitSound">
+  <source src="paddle_hit.wav" type="audio/wav">
+</audio>
+<audio id="brickHitSound">
+  <source src="brick_hit.wav" type="audio/wav">
+</audio>
+<audio id="gameOverSound">
+  <source src="game_over.wav" type="audio/wav">
+</audio>
+<audio id="levelUpSound">
+  <source src="level_up.wav" type="audio/wav">
+</audio>
+<audio id="powerUpSound">
+  <source src="power_up.wav" type="audio/wav">
+</audio>
+<audio id="extraLifeSound">
+  <source src="extra_life.wav" type="audio/wav">
+</audio>
+
 <script>
 const canvas = document.getElementById('pinballCanvas');
 const ctx = canvas.getContext('2d');
@@ -38,11 +57,13 @@ let ballX = canvas.width / 2;
 let ballY = canvas.height - 30;
 let ballSpeedX = 4;
 let ballSpeedY = -4;
+let maxBallSpeed = 8; // Maximum ball speed
 
 // Paddle properties
 let paddleHeight = 10;
 let paddleWidth = 100;
 let paddleX = (canvas.width - paddleWidth) / 2;
+let paddleColor = '#0095DD';
 
 // Keyboard controls
 let rightPressed = false;
@@ -67,6 +88,9 @@ let lives = 3;
 // Levels
 let level = 1;
 
+// Power-up
+let powerUp = { x: 0, y: 0, width: 20, height: 20, active: false };
+
 // Initialize bricks
 resetBricks();
 
@@ -74,6 +98,14 @@ resetBricks();
 document.addEventListener('keydown', keyDownHandler);
 document.addEventListener('keyup', keyUpHandler);
 document.getElementById('resetButton').addEventListener('click', resetGame);
+
+// Audio elements
+const paddleHitSound = document.getElementById('paddleHitSound');
+const brickHitSound = document.getElementById('brickHitSound');
+const gameOverSound = document.getElementById('gameOverSound');
+const levelUpSound = document.getElementById('levelUpSound');
+const powerUpSound = document.getElementById('powerUpSound');
+const extraLifeSound = document.getElementById('extraLifeSound');
 
 function keyDownHandler(e) {
   if (e.key === 'Right' || e.key === 'ArrowRight') {
@@ -106,12 +138,14 @@ function collisionDetection() {
           ballSpeedY = -ballSpeedY;
           b.status = 0;
           score++;
+          brickHitSound.play();
           if (score === brickRowCount * brickColumnCount) {
             // Level up
             level++;
+            levelUpSound.play();
             brickRowCount++;
-            ballSpeedX += 1; // Increase ball speed after each level
-            ballSpeedY += 1;
+            ballSpeedX = Math.min(ballSpeedX + 1, maxBallSpeed); // Increase ball speed (up to max speed)
+            ballSpeedY = Math.min(ballSpeedY + 1, maxBallSpeed);
             resetBricks();
             ballX = canvas.width / 2;
             ballY = canvas.height - 30;
@@ -135,7 +169,7 @@ function resetBricks() {
   }
 }
 
-// Drawing functions
+// Draw ball function
 function drawBall() {
   ctx.beginPath();
   ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
@@ -144,14 +178,16 @@ function drawBall() {
   ctx.closePath();
 }
 
+// Draw paddle function
 function drawPaddle() {
   ctx.beginPath();
   ctx.rect(paddleX, canvas.height - paddleHeight, paddleWidth, paddleHeight);
-  ctx.fillStyle = '#0095DD';
+  ctx.fillStyle = paddleColor;
   ctx.fill();
   ctx.closePath();
 }
 
+// Draw bricks function
 function drawBricks() {
   for (let c = 0; c < brickColumnCount; c++) {
     for (let r = 0; r < brickRowCount; r++) {
@@ -170,24 +206,76 @@ function drawBricks() {
   }
 }
 
+// Draw score function
 function drawScore() {
   ctx.font = '16px Arial';
   ctx.fillStyle = '#0095DD';
   ctx.fillText('Score: ' + score, 10, 20);
 }
 
+// Draw lives function
 function drawLives() {
   ctx.font = '16px Arial';
   ctx.fillStyle = '#0095DD';
   ctx.fillText('Lives: ' + lives, canvas.width - 75, 20);
 }
 
+// Draw level function
 function drawLevel() {
   ctx.font = '16px Arial';
   ctx.fillStyle = '#0095DD';
   ctx.fillText('Level: ' + level, canvas.width / 2 - 30, 20);
 }
 
+// Draw power-up function
+function drawPowerUp() {
+  if (powerUp.active) {
+    ctx.beginPath();
+    ctx.rect(powerUp.x, powerUp.y, powerUp.width, powerUp.height);
+    ctx.fillStyle = '#FF0000';
+    ctx.fill();
+    ctx.closePath();
+  }
+}
+
+// Move power-up function
+function movePowerUp() {
+  powerUp.y += 1; // Power-up movement speed
+
+  // Check collision with paddle
+  if (powerUp.y + powerUp.height >= canvas.height - paddleHeight &&
+      powerUp.x + powerUp.width >= paddleX &&
+      powerUp.x <= paddleX + paddleWidth) {
+    applyPowerUp();
+  }
+
+  // Reset power-up if it goes below canvas
+  if (powerUp.y > canvas.height) {
+    powerUp.active = false;
+  }
+}
+
+// Apply power-up function
+function applyPowerUp() {
+  powerUp.active = false;
+  powerUpSound.play();
+  
+  // Implement power-up effects
+  let randomPowerUp = Math.random();
+  if (randomPowerUp < 0.5) {
+    // Increase paddle size
+    paddleWidth += 20;
+    setTimeout(() => {
+      paddleWidth -= 20;
+    }, 10000); // 10 seconds
+  } else {
+    // Add extra life
+    lives++;
+    extraLifeSound.play();
+  }
+}
+
+// Draw function
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawBricks();
@@ -196,7 +284,9 @@ function draw() {
   drawScore();
   drawLives();
   drawLevel();
+  drawPowerUp();
   collisionDetection();
+  movePowerUp();
 
   // Ball movement
   ballX += ballSpeedX;
@@ -211,13 +301,16 @@ function draw() {
   } else if (ballY + ballSpeedY > canvas.height - ballRadius) {
     if (ballX > paddleX && ballX < paddleX + paddleWidth) {
       ballSpeedY = -ballSpeedY;
+      paddleHitSound.play();
     } else {
-      // Ball falls below the paddle
+      // Lose life
       lives--;
       if (!lives) {
+        gameOverSound.play();
         alert('Game Over');
         resetGame();
       } else {
+        // Reset ball and paddle positions
         ballX = canvas.width / 2;
         ballY = canvas.height - 30;
         paddleX = (canvas.width - paddleWidth) / 2;
