@@ -8,12 +8,13 @@
   body {
     margin: 0;
     overflow: hidden;
-    background-color: #000;
+    background: linear-gradient(to bottom, #000000, #0044ff);
   }
   canvas {
     display: block;
     margin: 0 auto;
     background-color: #000;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
   }
   button {
     display: block;
@@ -21,6 +22,15 @@
     padding: 10px 20px;
     font-size: 16px;
     cursor: pointer;
+    background-color: #0044ff;
+    color: #ffffff;
+    border: none;
+    border-radius: 5px;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+    transition: background-color 0.3s ease;
+  }
+  button:hover {
+    background-color: #002299;
   }
 </style>
 </head>
@@ -51,6 +61,10 @@
 const canvas = document.getElementById('pinballCanvas');
 const ctx = canvas.getContext('2d');
 
+// Game states
+let gamePaused = false;
+let gameOver = false;
+
 // Ball properties
 let ballRadius = 10;
 let ballX = canvas.width / 2;
@@ -63,7 +77,7 @@ let maxBallSpeed = 8; // Maximum ball speed
 let paddleHeight = 10;
 let paddleWidth = 100;
 let paddleX = (canvas.width - paddleWidth) / 2;
-let paddleColor = '#0095DD';
+let paddleColor = '#ffffff';
 
 // Keyboard controls
 let rightPressed = false;
@@ -91,13 +105,18 @@ let level = 1;
 // Power-up
 let powerUp = { x: 0, y: 0, width: 20, height: 20, active: false };
 
+// Countdown timer
+let countdownSeconds = 60;
+let countdownInterval;
+
 // Initialize bricks
 resetBricks();
 
-// Event listeners for paddle movement
+// Event listeners for paddle movement and game controls
 document.addEventListener('keydown', keyDownHandler);
 document.addEventListener('keyup', keyUpHandler);
 document.getElementById('resetButton').addEventListener('click', resetGame);
+document.addEventListener('keydown', togglePause);
 
 // Audio elements
 const paddleHitSound = document.getElementById('paddleHitSound');
@@ -108,24 +127,54 @@ const powerUpSound = document.getElementById('powerUpSound');
 const extraLifeSound = document.getElementById('extraLifeSound');
 
 function keyDownHandler(e) {
-  if (e.key === 'Right' || e.key === 'ArrowRight') {
-    rightPressed = true;
-  } else if (e.key === 'Left' || e.key === 'ArrowLeft') {
-    leftPressed = true;
+  if (!gamePaused && !gameOver) {
+    if (e.key === 'Right' || e.key === 'ArrowRight') {
+      rightPressed = true;
+    } else if (e.key === 'Left' || e.key === 'ArrowLeft') {
+      leftPressed = true;
+    }
   }
 }
 
 function keyUpHandler(e) {
-  if (e.key === 'Right' || e.key === 'ArrowRight') {
-    rightPressed = false;
-  } else if (e.key === 'Left' || e.key === 'ArrowLeft') {
-    leftPressed = false;
+  if (!gamePaused && !gameOver) {
+    if (e.key === 'Right' || e.key === 'ArrowRight') {
+      rightPressed = false;
+    } else if (e.key === 'Left' || e.key === 'ArrowLeft') {
+      leftPressed = false;
+    }
+  }
+}
+
+// Toggle pause function
+function togglePause(e) {
+  if (e.key === 'Escape') {
+    gamePaused = !gamePaused;
+    if (gamePaused) {
+      clearInterval(countdownInterval);
+    } else {
+      startCountdown();
+    }
   }
 }
 
 // Reset game function
 function resetGame() {
   document.location.reload();
+}
+
+// Start countdown function
+function startCountdown() {
+  countdownInterval = setInterval(() => {
+    countdownSeconds--;
+    if (countdownSeconds <= 0) {
+      clearInterval(countdownInterval);
+      gameOver = true;
+      gameOverSound.play();
+      alert('Time\'s up! Game Over');
+      resetGame();
+    }
+  }, 1000);
 }
 
 // Collision detection for ball and bricks
@@ -179,7 +228,7 @@ function getRandomBrickColor() {
 function drawBall() {
   ctx.beginPath();
   ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
-  ctx.fillStyle = '#0095DD';
+  ctx.fillStyle = '#ffffff';
   ctx.fill();
   ctx.closePath();
 }
@@ -215,21 +264,21 @@ function drawBricks() {
 // Draw score function
 function drawScore() {
   ctx.font = '16px Arial';
-  ctx.fillStyle = '#0095DD';
+  ctx.fillStyle = '#ffffff';
   ctx.fillText('Score: ' + score, 10, 20);
 }
 
 // Draw lives function
 function drawLives() {
   ctx.font = '16px Arial';
-  ctx.fillStyle = '#0095DD';
+  ctx.fillStyle = '#ffffff';
   ctx.fillText('Lives: ' + lives, canvas.width - 75, 20);
 }
 
 // Draw level function
 function drawLevel() {
   ctx.font = '16px Arial';
-  ctx.fillStyle = '#0095DD';
+  ctx.fillStyle = '#ffffff';
   ctx.fillText('Level: ' + level, canvas.width / 2 - 30, 20);
 }
 
@@ -238,7 +287,7 @@ function drawPowerUp() {
   if (powerUp.active) {
     ctx.beginPath();
     ctx.rect(powerUp.x, powerUp.y, powerUp.width, powerUp.height);
-    ctx.fillStyle = '#FF0000';
+    ctx.fillStyle = '#ff0000';
     ctx.fill();
     ctx.closePath();
   }
@@ -246,27 +295,28 @@ function drawPowerUp() {
 
 // Move power-up function
 function movePowerUp() {
-  powerUp.y += 1; // Power-up movement speed
-
-  // Check collision with paddle
-  if (powerUp.y + powerUp.height >= canvas.height - paddleHeight &&
-      powerUp.x + powerUp.width >= paddleX &&
-      powerUp.x <= paddleX + paddleWidth) {
-    applyPowerUp();
+  if (powerUp.active) {
+    powerUp.y += 2; // Move power-up downward
+    if (powerUp.y + powerUp.height > canvas.height) {
+      powerUp.active = false; // Reset power-up if it goes beyond canvas
+    }
   }
+}
 
-  // Reset power-up if it goes below canvas
-  if (powerUp.y > canvas.height) {
+// Check collision with power-up function
+function checkPowerUpCollision() {
+  if (powerUp.active &&
+      ballX + ballRadius > powerUp.x &&
+      ballX - ballRadius < powerUp.x + powerUp.width &&
+      ballY + ballRadius > powerUp.y &&
+      ballY - ballRadius < powerUp.y + powerUp.height) {
+    applyPowerUp();
     powerUp.active = false;
   }
 }
 
 // Apply power-up function
 function applyPowerUp() {
-  powerUp.active = false;
-  powerUpSound.play();
-  
-  // Implement power-up effects
   let randomPowerUp = Math.random();
   if (randomPowerUp < 0.5) {
     // Increase paddle width
@@ -313,6 +363,7 @@ function draw() {
       lives--;
       if (!lives) {
         gameOverSound.play();
+        gameOver = true;
         alert('Game Over');
         resetGame();
       } else {
@@ -331,8 +382,22 @@ function draw() {
     paddleX -= 7;
   }
 
+  // Check power-up collision
+  checkPowerUpCollision();
+
+  // Pause game text
+  if (gamePaused) {
+    ctx.font = '30px Arial';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.fillText('Game Paused', canvas.width / 2, canvas.height / 2);
+  }
+
   requestAnimationFrame(draw);
 }
+
+// Start countdown on game start
+startCountdown();
 
 draw();
 </script>
